@@ -72,7 +72,9 @@ def load_ast_model(
     prev = os.getcwd()
     os.chdir(src)
     try:
-        os.environ["TORCH_HOME"] = str(repo_root / "ast" / "pretrained_models")
+        torch_home = (repo_root / "ast" / "pretrained_models").resolve()
+        torch_home.mkdir(parents=True, exist_ok=True)
+        os.environ["TORCH_HOME"] = str(torch_home)
         from models.ast_models import ASTModel  # noqa: WPS433
 
         m = ASTModel(
@@ -196,6 +198,7 @@ def _ast_speed_summarize_timed(
     num_last_blocks: int = 6,
     device: Optional[str] = None,
     audioset_pretrain: bool = False,
+    imagenet_pretrain: bool = True,
     debug_dir: Optional[str | Path] = None,
 ) -> ASTSummarizeResult:
     """
@@ -214,6 +217,7 @@ def _ast_speed_summarize_timed(
         input_tdim=ast_window,
         device=device,
         audioset_pretrain=audioset_pretrain,
+        imagenet_pretrain=imagenet_pretrain,
     )
     tstride = int(model.v.patch_embed.proj.stride[1])
     f_dim, t_dim = _patch_grid_dims(model, ast_window)
@@ -292,6 +296,7 @@ def ast_speed_summarize(
     num_last_blocks: int = 6,
     device: Optional[str] = None,
     audioset_pretrain: bool = False,
+    imagenet_pretrain: bool = True,
     debug_dir: Optional[str | Path] = None,
     summary_duration_sec: Optional[float] = None,
 ) -> ASTSummarizeResult:
@@ -316,6 +321,7 @@ def ast_speed_summarize(
             num_last_blocks=num_last_blocks,
             device=device,
             audioset_pretrain=audioset_pretrain,
+            imagenet_pretrain=imagenet_pretrain,
             debug_dir=debug_dir,
         )
 
@@ -328,6 +334,7 @@ def ast_speed_summarize(
         input_tdim=T,
         device=device,
         audioset_pretrain=audioset_pretrain,
+        imagenet_pretrain=imagenet_pretrain,
     )
 
     x = prepare_batch(mel)

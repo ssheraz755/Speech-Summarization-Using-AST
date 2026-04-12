@@ -7,13 +7,18 @@
 
 import torch
 import torch.nn as nn
-from torch.cuda.amp import autocast
+from contextlib import nullcontext
 import os
+from pathlib import Path
 import wget
-os.environ['TORCH_HOME'] = '../../pretrained_models'
+# Respect TORCH_HOME set by callers (e.g. ast_summarize.pipeline); else default next to ast/src.
+if "TORCH_HOME" not in os.environ:
+    os.environ["TORCH_HOME"] = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "pretrained_models")
+    )
 import timm
 from timm.models.layers import to_2tuple,trunc_normal_
-torch.load("pretrained_models/audioset.pth")
+
 # override the timm package to relax the input shape constraint.
 class PatchEmbed(nn.Module):
     def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=768):
@@ -44,7 +49,7 @@ class ASTModel(nn.Module):
     :param audioset_pretrain: if use full AudioSet and ImageNet pretrained model
     :param model_size: the model size of AST, should be in [tiny224, small224, base224, base384], base224 and base 384 are same model, but are trained differently during ImageNet pretraining.
     """
-    def __init__(self, label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, imagenet_pretrain=True, audioset_pretrain=True, model_size='base384', verbose=True):
+    def __init__(self, label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, imagenet_pretrain=True, audioset_pretrain=False, model_size='base384', verbose=True):
 
         super(ASTModel, self).__init__()
         if timm.__version__ != '0.4.5':
@@ -126,11 +131,12 @@ class ASTModel(nn.Module):
             if model_size != 'base384':
                 raise ValueError('currently only has base384 AudioSet pretrained model.')
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            if os.path.exists('../../pretrained_models/audioset_10_10_0.4593.pth') == False:
+            _aud_path = Path(os.environ["TORCH_HOME"]).resolve() / "audioset_10_10_0.4593.pth"
+            if not _aud_path.is_file():
                 # this model performs 0.4593 mAP on the audioset eval set
                 audioset_mdl_url = 'https://www.dropbox.com/s/cv4knew8mvbrnvq/audioset_0.4593.pth?dl=1'
-                wget.download(audioset_mdl_url, out='../../pretrained_models/audioset_10_10_0.4593.pth')
-            sd = torch.load('../../pretrained_models/audioset_10_10_0.4593.pth', map_location=device)
+                wget.download(audioset_mdl_url, out=str(_aud_path))
+            sd = torch.load(_aud_path, map_location=device)
             audio_model = ASTModel(label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, imagenet_pretrain=False, audioset_pretrain=False, model_size='base384', verbose=False)
             audio_model = torch.nn.DataParallel(audio_model)
             audio_model.load_state_dict(sd, strict=False)
@@ -168,30 +174,35 @@ class ASTModel(nn.Module):
         t_dim = test_out.shape[3]
         return f_dim, t_dim
 
-    @autocast()
     def forward(self, x):
         """
         :param x: the input spectrogram, expected shape: (batch_size, time_frame_num, frequency_bins), e.g., (12, 1024, 128)
         :return: prediction
         """
-        # expect input x = (batch_size, time_frame_num, frequency_bins), e.g., (12, 1024, 128)
-        x = x.unsqueeze(1)
-        x = x.transpose(2, 3)
+        amp_ctx = (
+            torch.amp.autocast("cuda")
+            if torch.cuda.is_available()
+            else nullcontext()
+        )
+        with amp_ctx:
+            # expect input x = (batch_size, time_frame_num, frequency_bins), e.g., (12, 1024, 128)
+            x = x.unsqueeze(1)
+            x = x.transpose(2, 3)
 
-        B = x.shape[0]
-        x = self.v.patch_embed(x)
-        cls_tokens = self.v.cls_token.expand(B, -1, -1)
-        dist_token = self.v.dist_token.expand(B, -1, -1)
-        x = torch.cat((cls_tokens, dist_token, x), dim=1)
-        x = x + self.v.pos_embed
-        x = self.v.pos_drop(x)
-        for blk in self.v.blocks:
-            x = blk(x)
-        x = self.v.norm(x)
-        x = (x[:, 0] + x[:, 1]) / 2
+            B = x.shape[0]
+            x = self.v.patch_embed(x)
+            cls_tokens = self.v.cls_token.expand(B, -1, -1)
+            dist_token = self.v.dist_token.expand(B, -1, -1)
+            x = torch.cat((cls_tokens, dist_token, x), dim=1)
+            x = x + self.v.pos_embed
+            x = self.v.pos_drop(x)
+            for blk in self.v.blocks:
+                x = blk(x)
+            x = self.v.norm(x)
+            x = (x[:, 0] + x[:, 1]) / 2
 
-        x = self.mlp_head(x)
-        return x
+            x = self.mlp_head(x)
+            return x
 
 if __name__ == '__main__':
     input_tdim = 100

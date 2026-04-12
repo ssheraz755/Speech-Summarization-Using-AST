@@ -1,10 +1,10 @@
 # AST speech summarization — implementation and pipeline
 
-This document describes **how the project is structured**, **how data flows** from input audio to summary outputs, and **what each file does**. It is intended for showing project progress to Project Supervisor Dr. Ihsan and Evaluation Team Member Sir Cdr Zafran
+This document describes **how the project is structured**, **how data flows** from input audio to summary outputs, and **what each file does**. It is intended for developers and technical clients.
 
 ---
 
-## 1. Idea of the Project
+## 1. High-level idea
 
 The system does **not** use AST’s classification logits for “what was said.” Instead it uses **self-attention** inside the pretrained **Audio Spectrogram Transformer (AST)** as a **saliency signal**: time regions that the model attends to strongly are treated as more important.
 
@@ -24,7 +24,7 @@ This is **speed / saliency summarization**, not semantic summarization (no ASR o
 
 | Path | Role |
 |------|------|
-| `README.md` | Quick install and CLI for any user |
+| `README.md` | Quick install and CLI for end users |
 | `requirements.txt` | Python dependencies |
 | `ast/` | Upstream **AST** code: ViT backbone, `ASTModel` definition |
 | `ast/src/models/ast_models.py` | **ASTModel**: patch embed, DeiT blocks, classification head |

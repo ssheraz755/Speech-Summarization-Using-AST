@@ -48,6 +48,11 @@ def main() -> int:
         help="Use AudioSet weights if ast/pretrained_models/audioset_10_10_0.4593.pth exists",
     )
     parser.add_argument(
+        "--no-imagenet-pretrain",
+        action="store_true",
+        help="Skip DeiT ImageNet weights (no download; random init). Use when offline or DNS fails; summary quality drops.",
+    )
+    parser.add_argument(
         "--debug-dir",
         type=str,
         default="",
@@ -61,6 +66,8 @@ def main() -> int:
     device = args.device if args.device else None
     dbg = Path(args.debug_dir) if args.debug_dir else None
     sd = None if args.summary_duration_sec <= 0 else float(args.summary_duration_sec)
+    # AudioSet AST path requires ImageNet init in upstream ASTModel; keep pretrain on in that case.
+    imagenet_pretrain = True if args.audioset_pretrain else not args.no_imagenet_pretrain
     result = ast_speed_summarize(
         args.audio,
         _REPO,
@@ -69,6 +76,7 @@ def main() -> int:
         num_last_blocks=args.last_blocks,
         device=device,
         audioset_pretrain=args.audioset_pretrain,
+        imagenet_pretrain=imagenet_pretrain,
         debug_dir=dbg,
         summary_duration_sec=sd,
     )
