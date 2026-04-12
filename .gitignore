@@ -1,0 +1,11 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+examples/output/*
+!examples/output/.gitkeep
+examples/audio/*
+!examples/audio/.gitkeep
+
+# Large downloaded weights (use load script / README; GitHub file limit 100 MB)
+pretrained_models/

@@ -1,0 +1,13 @@
+# AST-based speech summarization (client)
+# python -m venv .venv
+# .venv\Scripts\activate   (Windows)   or   source .venv/bin/activate   (Linux/macOS)
+# pip install -r requirements.txt
+#
+# GPU: install torch/torchaudio from https://pytorch.org if needed.
+
+torch>=2.0.0
+torchaudio>=2.0.0
+soundfile>=0.12.0
+numpy>=1.22.0
+timm==0.4.5
+wget>=3.2
